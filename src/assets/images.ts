@@ -1,0 +1,18 @@
+export const images = {
+  logoPrimary: require('../../assets/logo/primary_icon.png'),
+  logoWordmark: require('../../assets/logo/wordmark.png'),
+  logoMonochrome: require('../../assets/logo/monochrome.png'),
+  logoBadge: require('../../assets/logo/badge.png'),
+  onboardingHero: require('../../assets/images/ui/onboarding_hero.jpg'),
+  homeBanner: require('../../assets/images/ui/home_banner.jpg'),
+  historyBanner: require('../../assets/images/ui/history_banner.jpg'),
+  settingsBanner: require('../../assets/images/ui/settings_banner.jpg'),
+  aboutBanner: require('../../assets/images/ui/about_banner.jpg'),
+  reviewBanner: require('../../assets/images/ui/review_banner.jpg'),
+  howTo1: require('../../assets/images/ui/howto_hero_1.jpg'),
+  howTo2: require('../../assets/images/ui/howto_hero_2.jpg'),
+  howTo3: require('../../assets/images/ui/howto_hero_3.jpg'),
+  howTo4: require('../../assets/images/ui/howto_hero_4.jpg'),
+  homeDarkProfile: require('../../assets/images/ui/home_dark_profile.jpg'),
+  homeDarkSoundwave: require('../../assets/images/ui/home_dark_soundwave.jpg'),
+};
