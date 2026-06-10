@@ -79,6 +79,7 @@ export const Button = forwardRef<View, ButtonProps>(function Button(
 
   const height = size === 'sm' ? 40 : size === 'md' ? 48 : 56;
   const fontSize = size === 'sm' ? 13 : 15;
+  const textLineHeight = size === 'sm' ? 18 : 22;
 
   function handlePress(e: GestureResponderEvent) {
     if (isDisabled) return;
@@ -121,7 +122,16 @@ export const Button = forwardRef<View, ButtonProps>(function Button(
       ) : (
         <>
           {leftIcon}
-          <AppText style={{ color: palette.fg, fontFamily: 'Inter_700Bold', fontSize }} numberOfLines={1}>
+          <AppText
+            style={{
+              color: palette.fg,
+              fontFamily: 'Inter_700Bold',
+              fontSize,
+              includeFontPadding: true,
+              lineHeight: textLineHeight,
+              paddingHorizontal: 2,
+            }}
+            numberOfLines={1}>
             {title}
           </AppText>
           {rightIcon}

@@ -174,13 +174,27 @@ const styles = StyleSheet.create({
     paddingTop: 60,
     paddingBottom: 36,
     paddingHorizontal: 32,
+    width: '100%',
     alignItems: 'center',
     gap: 10,
   },
-  logoRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  logoRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 4 },
   logo: { width: 48, height: 48, borderRadius: 12 },
-  appName: { color: '#fff', letterSpacing: 1.2, fontFamily: 'Manrope_700Bold' },
-  tagline: { color: 'rgba(255,255,255,0.85)', textAlign: 'center' },
+  appName: {
+    color: '#fff',
+    fontFamily: 'Manrope_700Bold',
+    includeFontPadding: true,
+    letterSpacing: 1.2,
+    lineHeight: 32,
+    paddingHorizontal: 2,
+  },
+  tagline: {
+    color: 'rgba(255,255,255,0.85)',
+    includeFontPadding: true,
+    lineHeight: 20,
+    paddingHorizontal: 4,
+    textAlign: 'center',
+  },
 
   // Features
   features: {
@@ -216,5 +230,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     flexShrink: 0,
   },
-  privacy: { paddingVertical: 6, alignItems: 'center' },
+  privacy: { paddingVertical: 6, paddingHorizontal: 4, alignItems: 'center', width: '100%' },
 });
