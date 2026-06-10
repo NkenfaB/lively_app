@@ -1,7 +1,7 @@
 import { createAudioPlayer, requestRecordingPermissionsAsync } from 'expo-audio';
 
 import { preprocessForBaselineModel } from './audioPreprocess';
-import { runBaselineModel, runScreeningModel } from './tfliteModel';
+import { runBaselineModel, runScreeningModel, run3ClassModel } from './tfliteModel';
 
 type ExtractOptions = {
   /** Stop collecting audio after this many seconds of playback. */
@@ -44,11 +44,15 @@ async function extractMonoPcmFromAudioUri(uri: string, options: ExtractOptions =
   });
 
   const statusSub = player.addListener('playbackStatusUpdate', (status: any) => {
-    if (status?.didJustFinish) done();
+    if (status?.didJustFinish || status?.isFinished) done();
     if (status?.mediaServicesDidReset) fail(new Error('Audio subsystem reset during analysis.'));
   });
 
-  const timeout = setTimeout(() => fail(new Error('Audio analysis timed out.')), Math.max(3000, maxSeconds * 1200));
+  // Hard timeout: maxSeconds + 4s grace. If nothing resolves by then, use whatever frames we have.
+  const timeout = setTimeout(() => {
+    if (frames.length > 0) done();
+    else fail(new Error('Audio analysis timed out — no audio data received. Check microphone permission.'));
+  }, (maxSeconds + 4) * 1000);
 
   try {
     player.setAudioSamplingEnabled(true);
@@ -65,22 +69,112 @@ async function extractMonoPcmFromAudioUri(uri: string, options: ExtractOptions =
   return new Float32Array(frames);
 }
 
+/** Acoustic signal features extracted during preprocessing — used for in-app explainability. */
+export type SignalFeatures = {
+  /** Mean energy in low mel bands (bins 0–20), normalised 0–1 */
+  lowFreqEnergy: number;
+  /** Mean energy in mid mel bands (bins 21–42), normalised 0–1 */
+  midFreqEnergy: number;
+  /** Mean energy in high mel bands (bins 43–63), normalised 0–1 */
+  highFreqEnergy: number;
+  /** Number of distinct energy bursts detected (cough events) */
+  burstCount: number;
+  /** How irregular the temporal pattern is (0=regular, 1=very irregular) */
+  temporalIrregularity: number;
+};
+
 export type OfflineInferenceResult = {
   covidProb: number;
   healthyProb: number;
   covidFlag: boolean;
+  pneumoniaProb?: number;
+  predictedLabel?: 'COVID' | 'PNEUMONIA' | 'HEALTHY';
+  /** Acoustic features for explainability UI — always present */
+  signalFeatures: SignalFeatures;
 };
 
+/**
+ * Extract human-interpretable acoustic features from the mel spectrogram tensor.
+ * The input is a flattened (nMels × maxFrames) Float32Array in row-major order.
+ */
+function extractSignalFeatures(melTensor: Float32Array, nMels = 64, maxFrames = 256): SignalFeatures {
+  // Reshape flat array into 2D: mel[m][t]
+  const mel: number[][] = Array.from({ length: nMels }, (_, m) =>
+    Array.from({ length: maxFrames }, (__, t) => melTensor[m * maxFrames + t] ?? 0)
+  );
+
+  // --- Frequency band energies ---
+  const bandMean = (startMel: number, endMel: number) => {
+    let sum = 0, count = 0;
+    for (let m = startMel; m < endMel; m++) {
+      for (let t = 0; t < maxFrames; t++) { sum += mel[m]![t]!; count++; }
+    }
+    return count > 0 ? sum / count : 0;
+  };
+  const lowFreqEnergy  = bandMean(0,  21);
+  const midFreqEnergy  = bandMean(21, 43);
+  const highFreqEnergy = bandMean(43, 64);
+
+  // --- Burst detection (count peaks in frame-level RMS) ---
+  const frameRms = Array.from({ length: maxFrames }, (_, t) => {
+    let sum = 0;
+    for (let m = 0; m < nMels; m++) sum += (mel[m]![t]!) ** 2;
+    return Math.sqrt(sum / nMels);
+  });
+  const rmsThreshold = Math.max(...frameRms) * 0.3;
+  let burstCount = 0;
+  let inBurst = false;
+  for (const rms of frameRms) {
+    if (rms > rmsThreshold && !inBurst) { burstCount++; inBurst = true; }
+    else if (rms <= rmsThreshold) inBurst = false;
+  }
+
+  // --- Temporal irregularity (std-dev of inter-burst intervals) ---
+  const burstOnsets: number[] = [];
+  inBurst = false;
+  for (let t = 0; t < frameRms.length; t++) {
+    if ((frameRms[t]! > rmsThreshold) && !inBurst) { burstOnsets.push(t); inBurst = true; }
+    else if (frameRms[t]! <= rmsThreshold) inBurst = false;
+  }
+  let temporalIrregularity = 0;
+  if (burstOnsets.length >= 2) {
+    const intervals = burstOnsets.slice(1).map((t, i) => t - burstOnsets[i]!);
+    const mean = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+    const variance = intervals.reduce((a, b) => a + (b - mean) ** 2, 0) / intervals.length;
+    // Normalise by maxFrames so result is 0–1
+    temporalIrregularity = Math.min(1, Math.sqrt(variance) / maxFrames);
+  }
+
+  return { lowFreqEnergy, midFreqEnergy, highFreqEnergy, burstCount, temporalIrregularity };
+}
+
 export async function runOfflineBaselineInference(uri: string): Promise<OfflineInferenceResult> {
-  // Keep this short so the UI feels responsive; preprocessing already extracts the loudest segment.
   const pcm = await extractMonoPcmFromAudioUri(uri, { maxSeconds: 8 });
-  // expo-audio typically outputs 44.1kHz PCM frames; preprocess() will resample to 16kHz.
   const input = preprocessForBaselineModel(pcm, 44100);
-  return await runBaselineModel(input);
+  const signalFeatures = extractSignalFeatures(input);
+  const result = await runBaselineModel(input);
+  return { ...result, signalFeatures };
 }
 
 export async function runOfflineScreeningInference(uri: string): Promise<OfflineInferenceResult> {
   const pcm = await extractMonoPcmFromAudioUri(uri, { maxSeconds: 8 });
   const input = preprocessForBaselineModel(pcm, 44100);
-  return await runScreeningModel(input);
+  const signalFeatures = extractSignalFeatures(input);
+  const result = await runScreeningModel(input);
+  return { ...result, signalFeatures };
+}
+
+export async function runOffline3ClassInference(uri: string): Promise<OfflineInferenceResult> {
+  const pcm = await extractMonoPcmFromAudioUri(uri, { maxSeconds: 8 });
+  const input = preprocessForBaselineModel(pcm, 44100);
+  const signalFeatures = extractSignalFeatures(input);
+  const result = await run3ClassModel(input);
+  return {
+    covidProb: result.covidProb,
+    healthyProb: result.healthyProb,
+    covidFlag: result.label === 'COVID',
+    pneumoniaProb: result.pneumoniaProb,
+    predictedLabel: result.label,
+    signalFeatures,
+  };
 }

@@ -70,10 +70,22 @@ export default function ReviewScreen() {
     dispatch(setAnalyzing());
     try {
       const out = await runOfflineBaselineInference(audioUri);
-      const covid = Math.max(0, Math.min(1, out.covidProb));
-      const label: RiskLabel = covid >= 0.67 ? 'High' : covid >= 0.34 ? 'Medium' : 'Low';
+      // 2-class model: COVID (High) vs Healthy (Low)
+      const label: RiskLabel = out.covidFlag ? 'High' : 'Low';
+      const confidence = out.covidFlag ? out.covidProb : out.healthyProb;
       haptic.success();
-      router.replace({ pathname: '/results', params: { label, confidence: String(covid) } });
+      router.replace({
+        pathname: '/results',
+        params: {
+          label,
+          confidence:   String(Math.max(0, Math.min(1, confidence))),
+          lowFreq:      String(out.signalFeatures.lowFreqEnergy),
+          midFreq:      String(out.signalFeatures.midFreqEnergy),
+          highFreq:     String(out.signalFeatures.highFreqEnergy),
+          bursts:       String(out.signalFeatures.burstCount),
+          irregularity: String(out.signalFeatures.temporalIrregularity),
+        },
+      });
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Offline analysis failed.';
       // eslint-disable-next-line no-console

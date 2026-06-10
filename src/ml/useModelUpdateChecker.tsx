@@ -35,8 +35,10 @@ export function ModelUpdateChecker() {
             'Model updated'
           );
         }
-      } else if (result.kind === 'error' && settings.notifications?.modelUpdates) {
-        toast.warning(`Couldn't update model: ${result.message}`);
+      } else if (result.kind === 'error') {
+        // Silently log — bundled model is always the fallback, no need to surface this.
+        // eslint-disable-next-line no-console
+        console.warn('Model OTA check failed (non-critical):', result.message);
       }
       // 'no-network', 'manifest-missing', and 'up-to-date' are silent on launch.
     })();

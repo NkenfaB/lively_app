@@ -20,6 +20,7 @@
  */
 
 import * as FileSystem from 'expo-file-system';
+import { Paths, Directory } from 'expo-file-system';
 import * as Crypto from 'expo-crypto';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -64,9 +65,9 @@ const MANIFEST_FILE = 'manifest.json';
 
 // Where downloaded models live. We pin the directory once.
 function modelsDir(): string {
-  const docDir = (FileSystem as any).Paths?.document?.uri as string | undefined;
-  if (!docDir) throw new Error('FileSystem document directory unavailable.');
-  return `${docDir}models/`;
+  // expo-file-system v19+: use Paths.document (a Directory instance)
+  const docUri: string = Paths.document.uri;
+  return `${docUri.replace(/\/$/, '')}/models/`;
 }
 
 function publicUrl(file: string): string {
@@ -115,8 +116,8 @@ export async function getActiveModelUri(): Promise<string | null> {
     const state = await readState();
     if (!state.fileName) return null;
     const path = `${modelsDir()}${state.fileName}`;
-    const info = await FileSystem.getInfoAsync(path);
-    if (!info.exists) return null;
+    const f = new FileSystem.File(path);
+    if (!f.exists) return null;
     return path;
   } catch {
     return null;
@@ -224,36 +225,32 @@ export async function checkAndUpdate(): Promise<CheckResult> {
  */
 async function installFromManifest(manifest: ModelManifest): Promise<void> {
   const dir = modelsDir();
-  await FileSystem.makeDirectoryAsync(dir, { intermediates: true });
+  const modelDir = new Directory(dir);
+  if (!modelDir.exists) modelDir.create();
 
-  const tempPath = `${dir}.${manifest.file}.partial`;
   const finalPath = `${dir}${manifest.file}`;
 
-  // Clean any stale temp from a previous interrupted install.
-  try {
-    await FileSystem.deleteAsync(tempPath, { idempotent: true });
-  } catch {
-    /* ignore */
-  }
-
-  // Download to temp path. Cache-bust so CDN-cached old bytes don't slip through.
+  // Download into the models directory. downloadFileAsync saves with a generated name.
   const url = `${publicUrl(manifest.file)}?t=${Date.now()}`;
-  const dl = await FileSystem.downloadAsync(url, tempPath);
-  if (!dl.uri) throw new Error('Download produced no URI.');
+
+  // expo-file-system v19+: File.downloadFileAsync(url, destinationDirectory)
+  const tempFile = await FileSystem.File.downloadFileAsync(url, modelDir);
+  if (!tempFile.exists) throw new Error('Download produced no file.');
 
   // Verify SHA-256.
-  const actualHash = await sha256OfFile(dl.uri);
+  const actualHash = await sha256OfFile(tempFile);
   const expected = manifest.sha256.toLowerCase();
   if (actualHash !== expected) {
-    await FileSystem.deleteAsync(dl.uri, { idempotent: true });
+    try { tempFile.delete(); } catch { /* ignore */ }
     throw new Error(
       `Checksum mismatch — expected ${expected.slice(0, 12)}…, got ${actualHash.slice(0, 12)}…`
     );
   }
 
-  // Atomic-ish move into place.
-  await FileSystem.deleteAsync(finalPath, { idempotent: true });
-  await FileSystem.moveAsync({ from: dl.uri, to: finalPath });
+  // Rename/move into the final name.
+  const finalFile = new FileSystem.File(finalPath);
+  if (finalFile.exists) finalFile.delete();
+  tempFile.move(finalFile);
 
   // Persist new state.
   await writeState({
@@ -266,18 +263,12 @@ async function installFromManifest(manifest: ModelManifest): Promise<void> {
 
 /** Compute SHA-256 of a local file, returning lowercase hex.
  *
- *  The expo-file-system v19+ moved `readAsStringAsync` + `EncodingType` under
- *  the legacy entry point, but the functions still work at runtime in the
- *  default import. Cast `FileSystem` to `any` to call the legacy method
- *  without TS complaining — same pattern syncSlice.ts already uses.
+ *  Uses the expo-file-system v19+ File API to read as base64, then hashes
+ *  with expo-crypto. The `scripts/make-model-manifest.mjs` script computes
+ *  SHA-256 over the same base64 string so the hashes match end-to-end.
  */
-async function sha256OfFile(uri: string): Promise<string> {
-  // Read as base64 → hash with expo-crypto. The matching `scripts/make-model-manifest.mjs`
-  // computes SHA-256 over the same base64 string so the hashes match end-to-end.
-  const FS = FileSystem as any;
-  const base64: string = await FS.readAsStringAsync(uri, {
-    encoding: FS.EncodingType?.Base64 ?? 'base64',
-  });
+async function sha256OfFile(file: InstanceType<typeof FileSystem.File>): Promise<string> {
+  const base64: string = await file.base64();
   return await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, base64, {
     encoding: Crypto.CryptoEncoding.HEX,
   });
@@ -287,8 +278,10 @@ async function sha256OfFile(uri: string): Promise<string> {
 export async function resetToBundled(): Promise<void> {
   const state = await readState();
   if (state.fileName) {
-    const path = `${modelsDir()}${state.fileName}`;
-    await FileSystem.deleteAsync(path, { idempotent: true });
+    try {
+      const f = new FileSystem.File(`${modelsDir()}${state.fileName}`);
+      if (f.exists) f.delete();
+    } catch { /* ignore */ }
   }
   await writeState(DEFAULT_STATE);
 }

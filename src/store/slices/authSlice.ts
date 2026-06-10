@@ -55,6 +55,15 @@ export const signOut = createAsyncThunk('auth/signOut', async () => {
   return true;
 });
 
+export const deleteAccount = createAsyncThunk('auth/deleteAccount', async () => {
+  await ensureSupabaseConfigured();
+  if (!supabase) throw new Error('Supabase client unavailable.');
+  const { error } = await supabase.functions.invoke('delete-account');
+  if (error) throw error;
+  await supabase.auth.signOut();
+  return true;
+});
+
 const authSlice = createSlice({
   name: 'auth',
   initialState,
@@ -120,6 +129,20 @@ const authSlice = createSlice({
       .addCase(signOut.rejected, (state, action) => {
         state.status = 'error';
         state.errorMessage = action.error.message ?? 'Sign-out failed.';
+      })
+      .addCase(deleteAccount.pending, (state) => {
+        state.status = 'loading';
+        state.errorMessage = null;
+      })
+      .addCase(deleteAccount.fulfilled, (state) => {
+        state.session = null;
+        state.user = null;
+        state.status = 'unauthenticated';
+        state.errorMessage = null;
+      })
+      .addCase(deleteAccount.rejected, (state, action) => {
+        state.status = 'error';
+        state.errorMessage = action.error.message ?? 'Account deletion failed.';
       });
   },
 });

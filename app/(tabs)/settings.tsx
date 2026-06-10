@@ -1,4 +1,4 @@
-import { ScrollView, StyleSheet, Switch, View } from 'react-native';
+import { Alert as RNAlert, ScrollView, StyleSheet, Switch, View } from 'react-native';
 import { Link } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 
@@ -25,7 +25,7 @@ import { useNavigationColors } from '@/theme/useNavigationTheme';
 import { A, enterDown } from '@/ui/animated';
 import { metrics } from '@/ui/metrics';
 import { useTabScreenBottomPad } from '@/ui/layoutMetrics';
-import { selectAuth, signOut } from '@/store/slices/authSlice';
+import { selectAuth, signOut, deleteAccount } from '@/store/slices/authSlice';
 import { selectSync, syncNow } from '@/store/slices/syncSlice';
 import { useToast } from '@/ui/Toast';
 import { haptic } from '@/ui/haptics';
@@ -55,6 +55,28 @@ export default function SettingsScreen() {
     } catch (e: any) {
       toast.error(e?.message ?? 'Sign-out failed.');
     }
+  }
+
+  function confirmDeleteAccount() {
+    RNAlert.alert(
+      'Delete account',
+      'This will permanently delete your account and all screening history. This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await dispatch(deleteAccount()).unwrap();
+              toast.info('Account deleted.');
+            } catch (e: any) {
+              toast.error(e?.message ?? 'Account deletion failed.');
+            }
+          },
+        },
+      ]
+    );
   }
 
   return (
@@ -164,6 +186,7 @@ export default function SettingsScreen() {
                     onPress={doSync}
                   />
                   <Button title="Sign out" variant="ghost" size="md" onPress={doSignOut} />
+                  <Button title="Delete account" variant="ghost" size="md" onPress={confirmDeleteAccount} />
                 </View>
               ) : (
                 <Link href="/auth" asChild>

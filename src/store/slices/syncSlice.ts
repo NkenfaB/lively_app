@@ -1,5 +1,6 @@
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
 import * as FileSystem from 'expo-file-system';
+import { Paths, Directory } from 'expo-file-system';
 
 import type { RootState } from '../store';
 import { ensureSupabaseConfigured, supabase } from '@/backend/supabaseClient';
@@ -76,10 +77,9 @@ export const checkModelUpdate = createAsyncThunk('sync/checkModelUpdate', async 
   const { data, error } = await supabase.storage.from(bucket).createSignedUrl(path, 60);
   if (error) throw error;
 
-  const docDir = (FileSystem as any).Paths?.document?.uri as string | undefined;
-  if (!docDir) throw new Error('FileSystem document directory unavailable.');
-  const modelsDir = `${docDir}models/`;
-  await FileSystem.makeDirectoryAsync(modelsDir, { intermediates: true });
+  const modelsDir = `${Paths.document.uri.replace(/\/$/, '')}/models/`;
+  const modelDirectory = new Directory(modelsDir);
+  if (!modelDirectory.exists) modelDirectory.create();
 
   const localPath = `${modelsDir}${path}`;
   const dl = await FileSystem.downloadAsync(data.signedUrl, localPath);

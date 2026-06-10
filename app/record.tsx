@@ -60,6 +60,8 @@ export default function RecordScreen() {
         return;
       }
       await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+      // Stop any existing session before preparing a new one
+      try { await recorder.stop(); } catch { /* ignore if not recording */ }
       await recorder.prepareToRecordAsync();
       recorder.record();
       haptic.press();

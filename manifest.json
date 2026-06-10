@@ -1,0 +1,8 @@
+{
+  "version": 3,
+  "displayName": "Baseline CNN v1 (COVID/Healthy)",
+  "file": "baseline_cnn.tflite",
+  "sha256": "e5c5d54a283c21fa329bf831111ff9c133d009cab84bec2e2c2197a122159295",
+  "releasedAt": "2026-06-04T09:49:36.107Z",
+  "notes": "Reverted to 2-class COVID vs Healthy model for higher accuracy."
+}

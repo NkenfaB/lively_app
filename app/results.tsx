@@ -1,6 +1,6 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 
@@ -24,22 +24,22 @@ type Risk = RiskLabel;
 
 const COPY: Record<Risk, { headline: string; body: string; tone: 'success' | 'warning' | 'danger'; pill: string }> = {
   Low: {
-    headline: 'Low signal detected',
-    body: 'The model did not detect strong cough patterns associated with concern. If you feel unwell or symptoms persist, consult a clinician.',
+    headline: 'No disease detected',
+    body: 'The model did not detect cough patterns associated with COVID-19 or pneumonia. If you feel unwell or symptoms persist, consult a clinician.',
     tone: 'success',
-    pill: 'LOW',
+    pill: 'HEALTHY',
   },
   Medium: {
-    headline: 'Medium signal detected',
-    body: 'Some cough characteristics warrant attention. If symptoms persist or worsen, consider consulting a clinician for further evaluation.',
+    headline: 'Pneumonia signal detected',
+    body: 'The model detected cough patterns associated with pneumonia. If symptoms persist or worsen, consider consulting a clinician for further evaluation.',
     tone: 'warning',
-    pill: 'MEDIUM',
+    pill: 'PNEUMONIA',
   },
   High: {
-    headline: 'High signal detected',
-    body: 'The model detected cough patterns associated with concern. Consider confirmatory testing and seek medical advice.',
+    headline: 'COVID-19 signal detected',
+    body: 'The model detected cough patterns associated with COVID-19. Consider confirmatory testing and seek medical advice.',
     tone: 'danger',
-    pill: 'HIGH',
+    pill: 'COVID-19',
   },
 };
 
@@ -49,7 +49,16 @@ export default function ResultsScreen() {
   const settings = useAppSelector(selectSettings);
   const colors = useNavigationColors();
   const toast = useToast();
-  const params = useLocalSearchParams<{ id?: string; label?: RiskLabel; confidence?: string }>();
+  const params = useLocalSearchParams<{
+    id?: string;
+    label?: RiskLabel;
+    confidence?: string;
+    lowFreq?: string;
+    midFreq?: string;
+    highFreq?: string;
+    bursts?: string;
+    irregularity?: string;
+  }>();
   const bottomPad = useStackScreenBottomPad();
 
   const fromHistory = useAppSelector((s) => (params.id ? selectHistoryItemById(s, params.id) : undefined));
@@ -66,6 +75,17 @@ export default function ResultsScreen() {
     return Math.max(0, Math.min(1, c));
   }, [fromHistory, params.confidence]);
 
+  const signalFeatures = useMemo(() => {
+    if (fromHistory) return null; // history items don't carry signal features
+    return {
+      lowFreq:      Math.max(0, Math.min(1, Number(params.lowFreq)      || 0)),
+      midFreq:      Math.max(0, Math.min(1, Number(params.midFreq)      || 0)),
+      highFreq:     Math.max(0, Math.min(1, Number(params.highFreq)     || 0)),
+      bursts:       Math.max(0, Math.round(Number(params.bursts)        || 0)),
+      irregularity: Math.max(0, Math.min(1, Number(params.irregularity) || 0)),
+    };
+  }, [fromHistory, params.lowFreq, params.midFreq, params.highFreq, params.bursts, params.irregularity]);
+
   if (!label) {
     return (
       <Screen>
@@ -81,7 +101,10 @@ export default function ResultsScreen() {
 
   return (
     <Screen>
-      <View style={[styles.content, { paddingBottom: bottomPad }]}>
+      <ScrollView
+        contentContainerStyle={[styles.content, { paddingBottom: bottomPad }]}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Score hero */}
         <A.View entering={enterFade(0)}>
           <Card tone="surface" elev="md" density="none" style={styles.heroCard}>
@@ -103,9 +126,9 @@ export default function ResultsScreen() {
 
               {settings.showConfidenceDetails ? (
                 <View style={styles.meterWrap}>
-                  <ScoreMeter value={confidence} tone={copy.tone} label="COVID likelihood" />
+                  <ScoreMeter value={confidence} tone={copy.tone} label="Disease likelihood" />
                   <AppText variant="caption" tone="muted" align="center" style={styles.meterHint}>
-                    Lower is better. Below 34% is reported as Low, 34–67% as Medium, above 67% as High.
+                    Confidence score for the detected condition. Higher means the model is more certain.
                   </AppText>
                 </View>
               ) : (
@@ -144,6 +167,73 @@ export default function ResultsScreen() {
           </Card>
         </A.View>
 
+        {/* Explainability card */}
+        {signalFeatures && (
+          <A.View entering={enterDown(180)}>
+            <Card tone="surface" elev="none" density="cozy" bordered>
+              <View style={styles.guidanceRow}>
+                <MaterialIcons name="insights" size={18} color={colors.primary} />
+                <AppText variant="bodyStrong">What the model detected</AppText>
+              </View>
+              <AppText variant="caption" tone="muted" style={{ marginBottom: 10 }}>
+                Key acoustic signals from your cough that influenced this result.
+              </AppText>
+              <SignalRow
+                label="Low-frequency energy"
+                sublabel="50–500 Hz — vocal tract resonance"
+                value={signalFeatures.lowFreq}
+                colors={colors}
+                highIsBad
+              />
+              <SignalRow
+                label="Mid-frequency energy"
+                sublabel="500–2000 Hz — typical cough band"
+                value={signalFeatures.midFreq}
+                colors={colors}
+              />
+              <SignalRow
+                label="High-frequency energy"
+                sublabel="2000–8000 Hz — airflow turbulence"
+                value={signalFeatures.highFreq}
+                colors={colors}
+              />
+              <View style={[styles.signalDivider, { backgroundColor: colors.outlineMuted }]} />
+              <View style={styles.signalMetaRow}>
+                <MaterialIcons
+                  name="bubble-chart"
+                  size={15}
+                  color={signalFeatures.bursts <= 2 ? colors.success : signalFeatures.bursts <= 4 ? colors.warning : colors.danger}
+                />
+                <AppText variant="caption" tone="muted">
+                  <AppText variant="caption" style={{ fontFamily: 'Inter_600SemiBold' }}>
+                    {signalFeatures.bursts} cough burst{signalFeatures.bursts !== 1 ? 's' : ''}
+                  </AppText>
+                  {' detected — '}
+                  {signalFeatures.bursts === 0 ? 'no clear cough found' :
+                   signalFeatures.bursts <= 2 ? 'good sample' :
+                   signalFeatures.bursts <= 4 ? 'typical' : 'many events'}
+                </AppText>
+              </View>
+              <View style={styles.signalMetaRow}>
+                <MaterialIcons
+                  name="timeline"
+                  size={15}
+                  color={signalFeatures.irregularity < 0.3 ? colors.success : signalFeatures.irregularity < 0.6 ? colors.warning : colors.danger}
+                />
+                <AppText variant="caption" tone="muted">
+                  <AppText variant="caption" style={{ fontFamily: 'Inter_600SemiBold' }}>
+                    {signalFeatures.irregularity < 0.3 ? 'Regular' : signalFeatures.irregularity < 0.6 ? 'Somewhat irregular' : 'Irregular'}
+                  </AppText>
+                  {' temporal pattern'}
+                </AppText>
+              </View>
+              <AppText variant="caption" tone="muted" style={styles.explainDisclaimer}>
+                These signals are for research transparency only — not a medical interpretation.
+              </AppText>
+            </Card>
+          </A.View>
+        )}
+
         {/* Actions */}
         <A.View entering={enterDown(200)} style={styles.actions}>
           <Button
@@ -165,8 +255,44 @@ export default function ResultsScreen() {
           />
           <Button title="New recording" variant="secondary" size="md" onPress={() => router.replace('/record')} />
         </A.View>
-      </View>
+      </ScrollView>
     </Screen>
+  );
+}
+
+function SignalRow({
+  label,
+  sublabel,
+  value,
+  colors,
+  highIsBad = false,
+}: {
+  label: string;
+  sublabel: string;
+  value: number;
+  colors: ReturnType<typeof useNavigationColors>;
+  highIsBad?: boolean;
+}) {
+  const pct = Math.round(value * 100);
+  const barColor = highIsBad
+    ? value < 0.35 ? colors.success : value < 0.65 ? colors.warning : colors.danger
+    : value < 0.35 ? colors.onSurfaceVariant : value < 0.65 ? colors.primary : colors.success;
+
+  return (
+    <View style={styles.signalRow}>
+      <View style={styles.signalLabelCol}>
+        <AppText variant="caption" style={{ fontFamily: 'Inter_600SemiBold' }}>{label}</AppText>
+        <AppText variant="caption" tone="muted">{sublabel}</AppText>
+      </View>
+      <View style={styles.signalBarCol}>
+        <View style={[styles.signalBarBg, { backgroundColor: colors.outlineMuted }]}>
+          <View style={[styles.signalBarFill, { width: `${pct}%`, backgroundColor: barColor }]} />
+        </View>
+        <AppText variant="caption" tone="muted" style={{ width: 32, textAlign: 'right' }}>
+          {pct}%
+        </AppText>
+      </View>
+    </View>
   );
 }
 
@@ -181,13 +307,13 @@ function colorFor(tone: 'success' | 'warning' | 'danger', colors: ReturnType<typ
 }
 
 function nextStep(label: Risk): string {
-  if (label === 'High') return 'Get a confirmatory test if available. Avoid close contact with others and consult a clinician.';
-  if (label === 'Medium') return 'Monitor your symptoms. Rest, hydrate, and consider a clinician if symptoms persist or worsen.';
+  if (label === 'High') return 'Get a COVID-19 confirmatory test if available. Avoid close contact with others and consult a clinician.';
+  if (label === 'Medium') return 'Pneumonia requires medical attention. Rest, stay hydrated, and consult a clinician promptly if symptoms worsen.';
   return 'Continue with normal activities. If you feel unwell later or symptoms persist, consult a clinician.';
 }
 
 const styles = StyleSheet.create({
-  content: { padding: metrics.screenPadding, gap: 14, flex: 1 },
+  content: { padding: metrics.screenPadding, gap: 14, flexGrow: 1 },
   heroCard: { padding: 22, gap: 12, overflow: 'hidden' },
   heroInner: { alignItems: 'center', gap: 10 },
   heroTitle: { marginTop: 6 },
@@ -195,5 +321,14 @@ const styles = StyleSheet.create({
   meterWrap: { width: '100%', marginTop: 8, gap: 6 },
   meterHint: { paddingHorizontal: 6 },
   guidanceRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
-  actions: { gap: 10, marginTop: 'auto' },
+  actions: { gap: 10, marginTop: 8 },
+  // Explainability card
+  signalRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
+  signalLabelCol: { flex: 1, gap: 1 },
+  signalBarCol: { flexDirection: 'row', alignItems: 'center', gap: 6, width: 120 },
+  signalBarBg: { flex: 1, height: 6, borderRadius: 3, overflow: 'hidden' },
+  signalBarFill: { height: 6, borderRadius: 3 },
+  signalDivider: { height: 1, marginVertical: 8 },
+  signalMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
+  explainDisclaimer: { marginTop: 8, fontStyle: 'italic' },
 });

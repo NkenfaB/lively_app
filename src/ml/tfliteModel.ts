@@ -1,7 +1,7 @@
 import { Asset } from 'expo-asset';
 import { loadTensorflowModel, type TensorflowModel } from 'react-native-fast-tflite';
 
-import { baselineCnnModel, mobilenetv2ScreeningModel } from './modelAsset';
+import { baselineCnnModel, mobilenetv2ScreeningModel, baseline3ClassModel } from './modelAsset';
 import { getActiveModelUri } from './modelManager';
 
 // Threshold tuned on validation set to maximise COVID recall (sensitivity).
@@ -9,6 +9,7 @@ const SCREENING_COVID_THRESHOLD = 0.35;
 
 let cachedBaseline: TensorflowModel | null = null;
 let cachedScreening: TensorflowModel | null = null;
+let cached3Class: TensorflowModel | null = null;
 
 async function loadModel(
   moduleAsset: unknown,
@@ -48,13 +49,20 @@ export async function getScreeningModel() {
   return cachedScreening;
 }
 
+export async function get3ClassModel() {
+  cached3Class = await loadModel(baseline3ClassModel, cached3Class);
+  return cached3Class;
+}
+
 /** Force a re-load on next inference (e.g. after installing a new OTA model). */
 export function invalidateModelCache() {
   cachedBaseline = null;
   cachedScreening = null;
+  cached3Class = null;
 }
 
 export type ModelOutput = { covidProb: number; healthyProb: number; covidFlag: boolean };
+export type ModelOutput3Class = { covidProb: number; pneumoniaProb: number; healthyProb: number; label: 'COVID' | 'PNEUMONIA' | 'HEALTHY' };
 
 async function runModel(model: TensorflowModel, input: Float32Array, covidThreshold: number): Promise<ModelOutput> {
   const expectedShape = model.inputs?.[0]?.shape;
@@ -85,4 +93,29 @@ export async function runBaselineModel(input: Float32Array): Promise<ModelOutput
 export async function runScreeningModel(input: Float32Array): Promise<ModelOutput> {
   const model = await getScreeningModel();
   return runModel(model, input, SCREENING_COVID_THRESHOLD);
+}
+
+export async function run3ClassModel(input: Float32Array): Promise<ModelOutput3Class> {
+  const model = await get3ClassModel();
+  const expectedShape = model.inputs?.[0]?.shape;
+  if (expectedShape && expectedShape.length) {
+    const expectedElems = expectedShape.reduce((acc, v) => acc * (v > 0 ? v : 1), 1);
+    if (expectedElems !== input.length) {
+      throw new Error(`Model input size mismatch: expected ${expectedElems} floats, got ${input.length}.`);
+    }
+  }
+  const bytes = new Uint8Array(input.buffer, input.byteOffset, input.byteLength);
+  const inputBuffer = bytes.slice().buffer;
+  const outputs = await model.run([inputBuffer]);
+  const out0 = outputs[0];
+  if (!out0) throw new Error('Model returned no outputs.');
+  const probs = new Float32Array(out0);
+  if (probs.length < 3) throw new Error(`Unexpected 3-class output length: ${probs.length}`);
+  const covidProb    = probs[0]!;
+  const pneumoniaProb = probs[1]!;
+  const healthyProb  = probs[2]!;
+  const maxIdx = covidProb >= pneumoniaProb && covidProb >= healthyProb ? 0
+               : pneumoniaProb >= healthyProb ? 1 : 2;
+  const label = (['COVID', 'PNEUMONIA', 'HEALTHY'] as const)[maxIdx]!;
+  return { covidProb, pneumoniaProb, healthyProb, label };
 }
