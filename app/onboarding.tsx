@@ -113,7 +113,7 @@ export default function OnboardingScreen() {
             />
           </A.View>
 
-          <A.View entering={enterDown(300)}>
+          <A.View entering={enterDown(300)} style={{ width: '100%' }}>
             <Pressable onPress={() => router.push('/about')} style={styles.privacy}>
               <AppText variant="bodySm" tone="primary" align="center">
                 Read the privacy notes
