@@ -31,11 +31,20 @@ export default function AboutScreen() {
               end={{ x: 1, y: 1 }}
               style={StyleSheet.absoluteFill}
             />
+            {/* Decorative circles */}
+            <View style={[styles.dec, styles.dec1]} />
+            <View style={[styles.dec, styles.dec2]} />
+
             <View style={styles.heroInner}>
-              <Image source={images.logoWordmark} style={styles.wordmark} resizeMode="contain" />
+              {/* Logo + name */}
+              <View style={styles.logoRow}>
+                <Image source={images.logoPrimary} style={styles.logoIcon} resizeMode="contain" />
+                <AppText style={styles.appName}>Lively</AppText>
+              </View>
+
               <Pill label="RESEARCH PROTOTYPE" tone="primary" />
               <AppText variant="bodySm" style={styles.heroBody}>
-                A master's thesis project exploring cough-based screening with offline-first inference.
+                A master's thesis project exploring cough-based screening for COVID-19 and TB with offline-first on-device inference.
               </AppText>
             </View>
           </View>
@@ -130,15 +139,26 @@ function PersonRow({
 const styles = StyleSheet.create({
   content: { padding: metrics.screenPadding, gap: 16, paddingBottom: 32 },
   hero: {
-    height: 200,
+    minHeight: 220,
     borderRadius: metrics.radius.xl,
     overflow: 'hidden',
-    padding: 22,
+    padding: 24,
     justifyContent: 'flex-end',
   },
-  heroInner: { gap: 10 },
-  wordmark: { height: 24, width: 110, tintColor: '#fff', alignSelf: 'flex-start' },
-  heroBody: { color: 'rgba(255,255,255,0.92)', maxWidth: 320 },
+  dec: { position: 'absolute', borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.08)' },
+  dec1: { width: 180, height: 180, top: -60, right: -40 },
+  dec2: { width: 120, height: 120, top: 20, right: 80 },
+  heroInner: { gap: 12 },
+  logoRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  logoIcon: { width: 52, height: 52, borderRadius: 14 },
+  appName: {
+    fontFamily: 'Manrope_700Bold',
+    fontSize: 32,
+    letterSpacing: 0.5,
+    color: '#fff',
+    lineHeight: 38,
+  },
+  heroBody: { color: 'rgba(255,255,255,0.88)', maxWidth: 320, lineHeight: 21 },
   personRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 6 },
   personIcon: { width: 32, height: 32, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
   divider: { height: 1, marginVertical: 8 },

@@ -7,7 +7,7 @@ export type RiskLabel = 'Low' | 'Medium' | 'High';
 export type HistoryItem = {
   id: string;
   createdAt: number;
-  label: `COVID likelihood: ${RiskLabel}`;
+  label: `COVID likelihood: ${RiskLabel}` | `Screening result: ${RiskLabel}`;
   confidence: number; // 0..1
   // Supabase sync state (local-only hint; server is upserted by id).
   synced?: boolean;

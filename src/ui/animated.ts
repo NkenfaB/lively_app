@@ -19,6 +19,7 @@ import Animated, {
   FadeOut,
   Layout,
   ReduceMotion,
+  useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
   withSpring,
@@ -67,6 +68,9 @@ export function smoothLayout() {
 export function usePressScale(scaleTo = 0.97) {
   const scale = useSharedValue(1);
   const reduced = useReducedMotion();
+  const style = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
   const onPressIn = () => {
     if (reduced) return;
     scale.value = withSpring(scaleTo, metrics.spring.snappy as WithSpringConfig);
@@ -75,7 +79,7 @@ export function usePressScale(scaleTo = 0.97) {
     scale.value = withSpring(1, metrics.spring.snappy as WithSpringConfig);
   };
   return {
-    style: { transform: [{ scale }] as const },
+    style,
     onPressIn,
     onPressOut,
   };

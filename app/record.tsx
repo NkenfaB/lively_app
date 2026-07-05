@@ -38,7 +38,7 @@ export default function RecordScreen() {
   const dispatch = useAppDispatch();
   const recordingState = useAppSelector(selectRecording);
   const colors = useNavigationColors();
-  const recorder = useAudioRecorder(RecordingPresets.LOW_QUALITY);
+  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const status = useAudioRecorderState(recorder);
   const toast = useToast();
   const bottomPad = useStackScreenBottomPad();

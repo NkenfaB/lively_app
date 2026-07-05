@@ -230,27 +230,51 @@ async function installFromManifest(manifest: ModelManifest): Promise<void> {
 
   const finalPath = `${dir}${manifest.file}`;
 
-  // Download into the models directory. downloadFileAsync saves with a generated name.
-  const url = `${publicUrl(manifest.file)}?t=${Date.now()}`;
+  // Cache-bust via a header, NOT a query string. A `?t=…` on the URL becomes
+  // part of the saved file's name (e.g. "model.tflite?t=123"), which then no
+  // longer matches `manifest.file` and makes the final move fail with
+  // NoSuchFileException. Keeping the path clean lets us reason about the name.
+  const url = publicUrl(manifest.file);
 
-  // expo-file-system v19+: File.downloadFileAsync(url, destinationDirectory)
-  const tempFile = await FileSystem.File.downloadFileAsync(url, modelDir);
-  if (!tempFile.exists) throw new Error('Download produced no file.');
+  // expo-file-system v19+: File.downloadFileAsync(url, destination) resolves to
+  // the actual File that was written. Trust the returned object — do not assume
+  // its on-disk name.
+  const downloaded = await FileSystem.File.downloadFileAsync(url, modelDir, {
+    headers: { 'Cache-Control': 'no-cache' },
+  });
+  if (!downloaded.exists) throw new Error('Download produced no file.');
 
-  // Verify SHA-256.
-  const actualHash = await sha256OfFile(tempFile);
+  // Verify SHA-256 on the file we actually got.
+  const actualHash = await sha256OfFile(downloaded);
   const expected = manifest.sha256.toLowerCase();
   if (actualHash !== expected) {
-    try { tempFile.delete(); } catch { /* ignore */ }
+    try { downloaded.delete(); } catch { /* ignore */ }
     throw new Error(
       `Checksum mismatch — expected ${expected.slice(0, 12)}…, got ${actualHash.slice(0, 12)}…`
     );
   }
 
-  // Rename/move into the final name.
+  // Activate: replace any existing file at the final name, then move the
+  // verified download into place. Guarded so a mid-move failure can't leave a
+  // half-written active model.
   const finalFile = new FileSystem.File(finalPath);
-  if (finalFile.exists) finalFile.delete();
-  tempFile.move(finalFile);
+  try {
+    if (finalFile.exists) finalFile.delete();
+    // Already at the target name? (download can land directly on finalPath) —
+    // nothing to move.
+    if (downloaded.uri.replace(/\/$/, '') !== finalFile.uri.replace(/\/$/, '')) {
+      downloaded.move(finalFile);
+    }
+  } catch (e) {
+    try { downloaded.delete(); } catch { /* ignore */ }
+    throw new Error(
+      `Failed to activate downloaded model: ${e instanceof Error ? e.message : String(e)}`
+    );
+  }
+
+  if (!finalFile.exists) {
+    throw new Error('Model activation failed — file missing after move.');
+  }
 
   // Persist new state.
   await writeState({
@@ -267,7 +291,10 @@ async function installFromManifest(manifest: ModelManifest): Promise<void> {
  *  with expo-crypto. The `scripts/make-model-manifest.mjs` script computes
  *  SHA-256 over the same base64 string so the hashes match end-to-end.
  */
-async function sha256OfFile(file: InstanceType<typeof FileSystem.File>): Promise<string> {
+// Structural type: expo-file-system v19 exposes `File` via two module paths
+// whose nominal types don't unify (downloadFileAsync's return vs. `new File`).
+// We only need `.base64()`, so accept anything providing it.
+async function sha256OfFile(file: { base64(): Promise<string> }): Promise<string> {
   const base64: string = await file.base64();
   return await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, base64, {
     encoding: Crypto.CryptoEncoding.HEX,

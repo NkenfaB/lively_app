@@ -25,7 +25,7 @@ const initialState: SyncState = {
 
 // Supabase schema (expected):
 // - table: screenings (id text pk, user_id uuid, created_at bigint, label text, confidence real)
-// - storage bucket: models (public or signed download), file baseline_cnn.tflite
+// - storage bucket: models (public or signed download), file cough_classifier_3class.tflite
 export const syncNow = createAsyncThunk('sync/syncNow', async (_: void, { getState, dispatch }) => {
   await ensureSupabaseConfigured();
   if (!supabase) throw new Error('Supabase client unavailable.');
@@ -71,7 +71,7 @@ export const checkModelUpdate = createAsyncThunk('sync/checkModelUpdate', async 
   await ensureSupabaseConfigured();
   if (!supabase) throw new Error('Supabase client unavailable.');
   const bucket = 'models';
-  const path = 'baseline_cnn.tflite';
+  const path = 'cough_classifier_3class.tflite';
 
   // Get a signed URL (works even if bucket isn't public).
   const { data, error } = await supabase.storage.from(bucket).createSignedUrl(path, 60);

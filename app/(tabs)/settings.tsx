@@ -1,3 +1,4 @@
+import React from 'react';
 import { Alert as RNAlert, ScrollView, StyleSheet, Switch, View } from 'react-native';
 import { Link } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -21,6 +22,7 @@ import {
   type NotificationPrefs,
   type ThemeMode,
 } from '@/store/slices/settingsSlice';
+import { DEFAULT_COVID_THRESHOLD, DEFAULT_TB_THRESHOLD } from '@/ml/tfliteModel';
 import { useNavigationColors } from '@/theme/useNavigationTheme';
 import { A, enterDown } from '@/ui/animated';
 import { metrics } from '@/ui/metrics';
@@ -245,9 +247,46 @@ export default function SettingsScreen() {
         <A.View entering={enterDown(250)}>
           <Section title="MODEL SPEC">
             <Card tone="container" elev="none" density="cozy">
-              <InfoRow label="Input" value="64×256×1 mel-spectrogram" />
+              <InfoRow label="Input" value="64×64×3 RGB (MobileNetV2)" />
+              <InfoRow label="Classes" value="COVID-19 · TB · Healthy" />
               <InfoRow label="Sample rate" value="16 kHz" />
               <InfoRow label="Inference" value="On-device (TensorFlow Lite)" />
+            </Card>
+          </Section>
+        </A.View>
+
+        {/* Detection thresholds — read-only. Calibrated operating points are
+            fixed for safety, reproducibility, and consistency; end users are
+            not equipped to trade off sensitivity vs. specificity on a
+            screening tool. */}
+        <A.View entering={enterDown(265)}>
+          <Section
+            title="DETECTION THRESHOLDS"
+            description="The decision points the model uses to flag a signal. These are calibrated for screening and are fixed to keep results safe and consistent.">
+            <Card tone="surface" bordered elev="none" density="cozy">
+              <ThresholdInfoRow
+                label="COVID-19"
+                value={DEFAULT_COVID_THRESHOLD}
+                summary="Tuned for high sensitivity — catches ≈ 88% of COVID-19 cases."
+                detail="A lower decision point is used so the tool errs toward catching cases. In screening, missing a positive is worse than a false alarm, so sensitivity is prioritised over specificity."
+                colors={colors}
+              />
+              <View style={[styles.divider, { backgroundColor: colors.outlineMuted }]} />
+              <ThresholdInfoRow
+                label="Tuberculosis"
+                value={DEFAULT_TB_THRESHOLD}
+                summary="Catches ≈ 100% of TB cases at this operating point."
+                detail="The model already reaches full TB recall here, so no further adjustment is applied. This value was validated on a held-out test set."
+                colors={colors}
+              />
+              <View style={styles.thresholdNote}>
+                <MaterialIcons name="lock-outline" size={14} color={colors.onSurfaceVariant} />
+                <AppText variant="micro" tone="muted" style={{ flex: 1 }}>
+                  Fixed by design. Thresholds were calibrated during model
+                  development and cannot be changed in-app to ensure every
+                  screening uses the same validated decision points.
+                </AppText>
+              </View>
             </Card>
           </Section>
         </A.View>
@@ -268,6 +307,45 @@ export default function SettingsScreen() {
         </A.View>
       </ScrollView>
     </Screen>
+  );
+}
+
+/** Read-only presentation of a fixed, calibrated detection threshold. */
+function ThresholdInfoRow({
+  label,
+  value,
+  summary,
+  detail,
+  colors,
+}: {
+  label: string;
+  value: number;
+  summary: string;
+  detail: string;
+  colors: ReturnType<typeof useNavigationColors>;
+}) {
+  return (
+    <View style={styles.thresholdRow}>
+      <View style={styles.thresholdLabelRow}>
+        <View style={{ flex: 1 }}>
+          <AppText variant="bodyStrong">{label}</AppText>
+          <AppText variant="caption" tone="muted" style={{ marginTop: 2 }}>{summary}</AppText>
+        </View>
+        <View style={styles.thresholdBadgeCol}>
+          <View style={[styles.thresholdBadge, { backgroundColor: colors.primaryMuted }]}>
+            <AppText style={{ fontFamily: 'Manrope_700Bold', color: colors.primary, fontSize: 13 }}>
+              {value.toFixed(2)}
+            </AppText>
+          </View>
+          <AppText variant="micro" tone="muted" style={{ textAlign: 'center' }}>
+            fixed
+          </AppText>
+        </View>
+      </View>
+      <AppText variant="caption" tone="muted" style={{ lineHeight: 18 }}>
+        {detail}
+      </AppText>
+    </View>
   );
 }
 
@@ -341,4 +419,16 @@ const styles = StyleSheet.create({
   acctText: { flex: 1, gap: 2 },
   acctActions: { gap: 10, marginTop: 14 },
   infoRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 6, gap: 8 },
+  // Detection thresholds (read-only)
+  thresholdRow: { paddingHorizontal: 14, paddingVertical: 14, gap: 8 },
+  thresholdLabelRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  thresholdBadgeCol: { alignItems: 'center', gap: 2 },
+  thresholdBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+  thresholdNote: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
 });

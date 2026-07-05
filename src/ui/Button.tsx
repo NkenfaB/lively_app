@@ -80,6 +80,7 @@ export const Button = forwardRef<View, ButtonProps>(function Button(
   const height = size === 'sm' ? 40 : size === 'md' ? 48 : 56;
   const fontSize = size === 'sm' ? 13 : 15;
   const textLineHeight = size === 'sm' ? 18 : 22;
+  const labelMinWidth = Math.ceil(title.length * fontSize * 0.8) + 24;
 
   function handlePress(e: GestureResponderEvent) {
     if (isDisabled) return;
@@ -129,7 +130,9 @@ export const Button = forwardRef<View, ButtonProps>(function Button(
               fontSize,
               includeFontPadding: true,
               lineHeight: textLineHeight,
-              paddingHorizontal: 2,
+              minWidth: labelMinWidth,
+              paddingHorizontal: 8,
+              textAlign: 'center',
             }}
             numberOfLines={1}>
             {title}

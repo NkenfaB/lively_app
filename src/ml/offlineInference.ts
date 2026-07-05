@@ -1,7 +1,7 @@
 import { createAudioPlayer, requestRecordingPermissionsAsync } from 'expo-audio';
 
 import { preprocessForBaselineModel } from './audioPreprocess';
-import { runBaselineModel, runScreeningModel, run3ClassModel } from './tfliteModel';
+import { runBaselineModel, runScreeningModel, run3ClassModel, DEFAULT_COVID_THRESHOLD, DEFAULT_TB_THRESHOLD } from './tfliteModel';
 
 type ExtractOptions = {
   /** Stop collecting audio after this many seconds of playback. */
@@ -87,8 +87,8 @@ export type OfflineInferenceResult = {
   covidProb: number;
   healthyProb: number;
   covidFlag: boolean;
-  pneumoniaProb?: number;
-  predictedLabel?: 'COVID' | 'PNEUMONIA' | 'HEALTHY';
+  tbProb?: number;
+  predictedLabel?: 'COVID' | 'TB' | 'HEALTHY';
   /** Acoustic features for explainability UI — always present */
   signalFeatures: SignalFeatures;
 };
@@ -164,16 +164,20 @@ export async function runOfflineScreeningInference(uri: string): Promise<Offline
   return { ...result, signalFeatures };
 }
 
-export async function runOffline3ClassInference(uri: string): Promise<OfflineInferenceResult> {
+export async function runOffline3ClassInference(
+  uri: string,
+  covidThreshold = DEFAULT_COVID_THRESHOLD,
+  tbThreshold = DEFAULT_TB_THRESHOLD,
+): Promise<OfflineInferenceResult> {
   const pcm = await extractMonoPcmFromAudioUri(uri, { maxSeconds: 8 });
   const input = preprocessForBaselineModel(pcm, 44100);
   const signalFeatures = extractSignalFeatures(input);
-  const result = await run3ClassModel(input);
+  const result = await run3ClassModel(input, covidThreshold, tbThreshold);
   return {
     covidProb: result.covidProb,
     healthyProb: result.healthyProb,
     covidFlag: result.label === 'COVID',
-    pneumoniaProb: result.pneumoniaProb,
+    tbProb: result.tbProb,
     predictedLabel: result.label,
     signalFeatures,
   };

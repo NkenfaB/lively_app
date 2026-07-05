@@ -1,0 +1,19 @@
+{
+  "model": "cough_classifier_3class.tflite",
+  "classes": [
+    "COVID",
+    "TB",
+    "HEALTHY"
+  ],
+  "input_shape": [
+    1,
+    64,
+    64,
+    3
+  ],
+  "covid_threshold": 0.35,
+  "tb_threshold": 0.5,
+  "covid_recall": 0.7,
+  "tb_recall": 1.0,
+  "note": "Balanced sensitivity. COVID flagged if prob>=0.35 (70% recall, fewer false alarms)."
+}

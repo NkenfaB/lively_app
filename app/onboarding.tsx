@@ -44,9 +44,14 @@ export default function OnboardingScreen() {
           <View style={styles.heroContent}>
             <View style={styles.logoRow}>
               <Image source={images.logoPrimary} style={styles.logo} resizeMode="contain" />
-              <AppText variant="h2" style={styles.appName}>Lively</AppText>
+              <AppText variant="h2" style={styles.appName} numberOfLines={1}>
+                Lively
+              </AppText>
             </View>
-            <AppText variant="bodySm" style={styles.tagline}>
+            <AppText
+              variant="bodySm"
+              style={styles.tagline}
+              numberOfLines={1}>
               Cough screening, on your device.
             </AppText>
           </View>
@@ -113,9 +118,14 @@ export default function OnboardingScreen() {
             />
           </A.View>
 
-          <A.View entering={enterDown(300)} style={{ width: '100%' }}>
+          <A.View entering={enterDown(300)} style={styles.privacyWrap}>
             <Pressable onPress={() => router.push('/about')} style={styles.privacy}>
-              <AppText variant="bodySm" tone="primary" align="center">
+              <AppText
+                variant="bodySm"
+                tone="primary"
+                align="center"
+                style={styles.privacyText}
+                numberOfLines={1}>
                 Read the privacy notes
               </AppText>
             </Pressable>
@@ -158,6 +168,7 @@ const styles = StyleSheet.create({
   heroOuter: {
     borderBottomLeftRadius: 28,
     borderBottomRightRadius: 28,
+    overflow: 'visible',
   },
   // Clips only the gradient + decorative circles, never the text
   heroClip: {
@@ -177,23 +188,36 @@ const styles = StyleSheet.create({
     width: '100%',
     alignItems: 'center',
     gap: 10,
+    overflow: 'visible',
   },
-  logoRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 4 },
+  logoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    maxWidth: '100%',
+    overflow: 'visible',
+    paddingHorizontal: 6,
+  },
   logo: { width: 48, height: 48, borderRadius: 12 },
   appName: {
     color: '#fff',
+    flexShrink: 1,
     fontFamily: 'Manrope_700Bold',
     includeFontPadding: true,
     letterSpacing: 1.2,
     lineHeight: 32,
-    paddingHorizontal: 2,
+    minWidth: 92,
+    paddingHorizontal: 4,
+    textAlign: 'center',
   },
   tagline: {
     color: 'rgba(255,255,255,0.85)',
     includeFontPadding: true,
     lineHeight: 20,
-    paddingHorizontal: 4,
+    maxWidth: '100%',
+    paddingHorizontal: 8,
     textAlign: 'center',
+    width: '100%',
   },
 
   // Features
@@ -212,6 +236,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingBottom: 20,
     gap: 10,
+    overflow: 'visible',
   },
   checkboxRow: {
     flexDirection: 'row',
@@ -230,5 +255,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     flexShrink: 0,
   },
-  privacy: { paddingVertical: 6, paddingHorizontal: 4, alignItems: 'center', width: '100%' },
+  privacyWrap: { width: '100%', overflow: 'visible' },
+  privacy: { alignItems: 'center', paddingHorizontal: 8, paddingVertical: 8, width: '100%' },
+  privacyText: {
+    includeFontPadding: true,
+    lineHeight: 22,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    width: '100%',
+  },
 });

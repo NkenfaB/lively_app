@@ -1,6 +1,7 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 
 import type { RootState } from '../store';
+import { DEFAULT_COVID_THRESHOLD, DEFAULT_TB_THRESHOLD } from '@/ml/tfliteModel';
 
 export type ThemeMode = 'system' | 'light' | 'dark';
 
@@ -18,6 +19,10 @@ type SettingsState = {
   showConfidenceDetails: boolean;
   themeMode: ThemeMode;
   notifications: NotificationPrefs;
+  /** COVID detection threshold [0.10–0.50]. Lower = more sensitive, fewer false negatives. */
+  covidThreshold: number;
+  /** TB detection threshold [0.30–0.70]. Lower = more sensitive. */
+  tbThreshold: number;
 };
 
 const initialState: SettingsState = {
@@ -29,6 +34,8 @@ const initialState: SettingsState = {
     modelUpdates: true,
     healthReminders: false,
   },
+  covidThreshold: DEFAULT_COVID_THRESHOLD,
+  tbThreshold: DEFAULT_TB_THRESHOLD,
 };
 
 const settingsSlice = createSlice({
@@ -51,6 +58,11 @@ const settingsSlice = createSlice({
       }
       state.notifications[action.payload.key] = action.payload.value;
     },
+    // Detection thresholds are intentionally fixed at their calibrated,
+    // validated values (see DEFAULT_COVID_THRESHOLD / DEFAULT_TB_THRESHOLD).
+    // They are not user-adjustable: a lay user has no clinical basis to trade
+    // off sensitivity vs. specificity on a screening tool, and every screening
+    // must use the same decision points for safety and reproducibility.
   },
 });
 
